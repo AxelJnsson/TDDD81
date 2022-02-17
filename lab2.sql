@@ -243,3 +243,16 @@ SELECT AVG(weight) FROM jbparts WHERE color = "black";
 1 row in set (0,00 sec)
 */
 
+/*13*/
+SELECT * FROM jbsupplier WHERE city IN (SELECT jbcity.id FROM jbcity WHERE state ='Mass');
+
+/*14*/
+
+
+/*15*/
+CREATE VIEW XXX AS SELECT name FROM jbitem GROUP BY price HAVING price < AVG(price);
+
+/*16 difference between a table and a view*/
+/*A table is structued with columns and rows, while a view is a virtual table extracted from a database. A view can join data from several tables.
+The view is dynamic and the table is static. What this means is that the view derives the data from the choosen tables and is always up to date.
+This basically means that you don't have to tamper with the view if something changes in the table, hence making it dynamic.*/
