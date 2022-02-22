@@ -243,11 +243,24 @@ SELECT AVG(weight) FROM jbparts WHERE color = "black";
 1 row in set (0,00 sec)
 */
 
-/*13*/
-SELECT * FROM jbsupplier WHERE city IN (SELECT jbcity.id FROM jbcity WHERE state ='Mass');
+/*13 Weight and name for all parts sold by suppliers in Mass*/
+SELECT A.name, SUM(C.weight*B.quan) FROM jbsupplier A JOIN jbsupply B ON B.supplier = A.id JOIN jbparts C ON C.id = B.part WHERE city IN (SELECT jbcity.id FROM jbcity WHERE state ='Mass') GROUP BY A.name;
+
+/*
++--------------+----------------------+
+| name         | SUM(C.weight*B.quan) |
++--------------+----------------------+
+| DEC          |                 3120 |
+| Fisher-Price |              1135000 |
++--------------+----------------------+
+2 rows in set (0,01 sec)
+*/
 
 /*14*/
+CREATE TABLE temp ( id int, name VARCHAR(50), dept int, price int, qoh int, supplier int, primary key (id), FOREIGN KEY (supplier) REFERENCES jbsupplier (id), FOREIGN
+KEY (dept) REFERENCES jbdept (id));
 
+INSERT INTO temp SELECT * FROM jbitem WHERE price <(SELECT AVG(price) FROM jbitem);
 
 /*15*/
 CREATE VIEW XXX AS SELECT name FROM jbitem GROUP BY price HAVING price < AVG(price);
