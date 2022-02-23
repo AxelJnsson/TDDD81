@@ -360,7 +360,7 @@ SELECT * FROM debit_view2_0;
 6 rows in set (0,00 sec)
 */
 
-/*19*/
+/*19 a) deleted all the suppliers from jbsupplier that were active in Los Angeles*/
 DELETE FROM jbsale WHERE item IN (SELECT A.id FROM jbitem A, jbsupplier B, jbcity C WHERE C.id = B.city AND A.supplier = B.id AND C.name = "Los Angeles");
 
 DELETE FROM jbitem WHERE supplier = (SELECT id FROM jbsupplier WHERE city = (SELECT id FROM jbcity WHERE name = "Los Angeles"));
@@ -392,4 +392,26 @@ SELECT * FROM jbsupplier;
 | 999 | A E Neumann  |  537 |
 +-----+--------------+------+
 15 rows in set (0,00 sec)
+*/
+
+/*19 b) We had to delete some other things from other tables realted to the foreign keys in jbsupplier. Therefore, we deleted all the items sold in LA from jbsale,
+all the suppliers that sold something in LA from jbitem, and we removed our custom table temp. Finally we could all the relevant suppliers from jbsupplier*/
+
+/*20*/
+CREATE VIEW jbsale_supply(supplier, item, supplied, quantity) AS SELECT jbsupplier.name, jbitem.name, jbitem.qoh, jbsale.quantity FROM jbsupplier RIGHT JOIN jbitem ON jbsupplier.id=jbitem.supplier LEFT JOIN jbsale ON jbsale.item=jbitem.id;
+
+SELECT supplier, sum(quantity) AS sum FROM jbsale_supply GROUP BY supplier;
+
+/*
++--------------+------+
+| supplier     | sum  |
++--------------+------+
+| Cannon       |    6 |
+| Fisher-Price | NULL |
+| Levi-Strauss |    1 |
+| Playskool    |    2 |
+| White Stag   |    4 |
+| Whitman's    |    2 |
++--------------+------+
+6 rows in set (0,01 sec)
 */
