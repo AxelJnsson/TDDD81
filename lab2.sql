@@ -256,16 +256,140 @@ SELECT A.name, SUM(C.weight*B.quan) FROM jbsupplier A JOIN jbsupply B ON B.suppl
 2 rows in set (0,01 sec)
 */
 
-/*14*/
+/*14 Created a new table calle temp, similar to jbitem, and filled it with all the items that cost less than the average item*/
 CREATE TABLE temp ( id int, name VARCHAR(50), dept int, price int, qoh int, supplier int, primary key (id), FOREIGN KEY (supplier) REFERENCES jbsupplier (id), FOREIGN
 KEY (dept) REFERENCES jbdept (id));
 
 INSERT INTO temp SELECT * FROM jbitem WHERE price <(SELECT AVG(price) FROM jbitem);
 
-/*15*/
-CREATE VIEW XXX AS SELECT name FROM jbitem GROUP BY price HAVING price < AVG(price);
+SELECT * FROM temp;
+
+/*
++-----+-----------------+------+-------+------+----------+
+| id  | name            | dept | price | qoh  | supplier |
++-----+-----------------+------+-------+------+----------+
+|  11 | Wash Cloth      |    1 |    75 |  575 |      213 |
+|  19 | Bellbottoms     |   43 |   450 |  600 |       33 |
+|  21 | ABC Blocks      |    1 |   198 |  405 |      125 |
+|  23 | 1 lb Box        |   10 |   215 |  100 |       42 |
+|  25 | 2 lb Box, Mix   |   10 |   450 |   75 |       42 |
+|  26 | Earrings        |   14 |  1000 |   20 |      199 |
+|  43 | Maze            |   49 |   325 |  200 |       89 |
+| 106 | Clock Book      |   49 |   198 |  150 |      125 |
+| 107 | The 'Feel' Book |   35 |   225 |  225 |       89 |
+| 118 | Towels, Bath    |   26 |   250 | 1000 |      213 |
+| 119 | Squeeze Ball    |   49 |   250 |  400 |       89 |
+| 120 | Twin Sheet      |   26 |   800 |  750 |      213 |
+| 165 | Jean            |   65 |   825 |  500 |       33 |
+| 258 | Shirt           |   58 |   650 | 1200 |       33 |
++-----+-----------------+------+-------+------+----------+
+14 rows in set (0,01 sec)
+*/
+
+
+/*15 Created a view that contains all the items that cost less than the average item*/
+CREATE VIEW temp_view AS SELECT * FROM temp;
+ SELECT * FROM temp_view;
+
+/*
++-----+-----------------+------+-------+------+----------+
+| id  | name            | dept | price | qoh  | supplier |
++-----+-----------------+------+-------+------+----------+
+|  11 | Wash Cloth      |    1 |    75 |  575 |      213 |
+|  19 | Bellbottoms     |   43 |   450 |  600 |       33 |
+|  21 | ABC Blocks      |    1 |   198 |  405 |      125 |
+|  23 | 1 lb Box        |   10 |   215 |  100 |       42 |
+|  25 | 2 lb Box, Mix   |   10 |   450 |   75 |       42 |
+|  26 | Earrings        |   14 |  1000 |   20 |      199 |
+|  43 | Maze            |   49 |   325 |  200 |       89 |
+| 106 | Clock Book      |   49 |   198 |  150 |      125 |
+| 107 | The 'Feel' Book |   35 |   225 |  225 |       89 |
+| 118 | Towels, Bath    |   26 |   250 | 1000 |      213 |
+| 119 | Squeeze Ball    |   49 |   250 |  400 |       89 |
+| 120 | Twin Sheet      |   26 |   800 |  750 |      213 |
+| 165 | Jean            |   65 |   825 |  500 |       33 |
+| 258 | Shirt           |   58 |   650 | 1200 |       33 |
++-----+-----------------+------+-------+------+----------+
+14 rows in set (0,00 sec)
+*/
 
 /*16 difference between a table and a view*/
 /*A table is structued with columns and rows, while a view is a virtual table extracted from a database. A view can join data from several tables.
 The view is dynamic and the table is static. What this means is that the view derives the data from the choosen tables and is always up to date.
 This basically means that you don't have to tamper with the view if something changes in the table, hence making it dynamic.*/
+
+/*17 A view that contains the total sum of all products that have been sold*/
+CREATE VIEW debit_view AS SELECT A.id, SUM(B.quantity*C.price) FROM jbdebit A, jbsale B, jbitem C WHERE A.id = B.debit AND B.item = C.id  GROUP
+BY A.id;
+
+SELECT * FROM debit_view;
+
+/*
++--------+-------------------------+
+| id     | SUM(B.quantity*C.price) |
++--------+-------------------------+
+| 100581 |                    2050 |
+| 100582 |                    1000 |
+| 100586 |                   13446 |
+| 100592 |                     650 |
+| 100593 |                     430 |
+| 100594 |                    3295 |
++--------+-------------------------+
+6 rows in set (0,00 sec)
+*/
+
+/*18 Does the same thing as in the previous point, with the difference that the JOIN clause is captured in the SELECT clause. 
+The choice of JOIN was made base on the fact that the inner JOIN removes rows that don't match, 
+this is helpful since we are not interested in those rows.*/
+CREATE VIEW debit_view2_0 AS SELECT A.id, SUM(B.quantity*C.price) FROM jbdebit A JOIN jbsale B ON A.id = B.debit JOIN jbitem C ON B.item = C.id
+GROUP BY A.id;
+
+SELECT * FROM debit_view2_0;
+
+/*
++--------+-------------------------+
+| id     | SUM(B.quantity*C.price) |
++--------+-------------------------+
+| 100581 |                    2050 |
+| 100582 |                    1000 |
+| 100586 |                   13446 |
+| 100592 |                     650 |
+| 100593 |                     430 |
+| 100594 |                    3295 |
++--------+-------------------------+
+6 rows in set (0,00 sec)
+*/
+
+/*19*/
+DELETE FROM jbsale WHERE item IN (SELECT A.id FROM jbitem A, jbsupplier B, jbcity C WHERE C.id = B.city AND A.supplier = B.id AND C.name = "Los Angeles");
+
+DELETE FROM jbitem WHERE supplier = (SELECT id FROM jbsupplier WHERE city = (SELECT id FROM jbcity WHERE name = "Los Angeles"));
+
+DROP TABLE temp;
+
+DELETE FROM jbsupplier WHERE city = (SELECT id FROM jbcity WHERE name = "Los Angeles");
+
+SELECT * FROM jbsupplier;
+
+/*
++-----+--------------+------+
+| id  | name         | city |
++-----+--------------+------+
+|   5 | Amdahl       |  921 |
+|  15 | White Stag   |  106 |
+|  20 | Wormley      |  118 |
+|  33 | Levi-Strauss |  941 |
+|  42 | Whitman's    |  802 |
+|  62 | Data General |  303 |
+|  67 | Edger        |  841 |
+|  89 | Fisher-Price |   21 |
+| 122 | White Paper  |  981 |
+| 125 | Playskool    |  752 |
+| 213 | Cannon       |  303 |
+| 241 | IBM          |  100 |
+| 440 | Spooley      |  609 |
+| 475 | DEC          |   10 |
+| 999 | A E Neumann  |  537 |
++-----+--------------+------+
+15 rows in set (0,00 sec)
+*/
