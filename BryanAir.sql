@@ -1,8 +1,10 @@
 
 drop table if exists flight cascade;
+drop table if exists pays cascade;
 drop table if exists reservation cascade;
 drop table if exists contact_person cascade;
 drop table if exists credit_card_holder cascade;
+drop table if exists passengerBooking cascade;
 drop table if exists booking cascade;
 drop table if exists passenger cascade;
 drop table if exists weekly_schedule cascade;
@@ -11,11 +13,17 @@ drop table if exists airport cascade;
 drop table if exists day cascade;
 drop table if exists year cascade;
 
+
 drop procedure if exists addYear;
 drop procedure if exists addDay;
 drop procedure if exists addDestination;
 drop procedure if exists addRoute;
 drop procedure if exists addFlight;
+
+drop function if exists calculateFreeSeats;
+drop function if exists calculatePrice;
+
+drop trigger if exists createTicketNr;
 
 CREATE TABLE airport(
 airport_code varchar(3) PRIMARY KEY,
@@ -92,6 +100,25 @@ booking_id integer PRIMARY KEY auto_increment,
 price double
 );
 
+CREATE TABLE passengerBooking (
+ticket_nr integer PRIMARY KEY,
+booking_id integer,
+passport_nr integer,
+FOREIGN KEY (passport_nr) REFERENCES passenger(passport_nr),
+FOREIGN KEY (booking_id) REFERENCES booking(booking_id)
+
+);
+
+CREATE TABLE pays (
+booking_id integer PRIMARY KEY,
+card_nr bigint,
+reservation_nr integer,
+FOREIGN KEY (booking_id) REFERENCES booking(booking_id),
+FOREIGN KEY (card_nr) REFERENCES credit_card_holder(card_nr),
+FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr)
+
+);
+
 
 /*
 Procedures
@@ -142,5 +169,69 @@ VALUES(temp_ws_id, temp_week);
 SET temp_week = temp_week + 1;
 END WHILE insert_flights;
 
+END //
+
+
+CREATE PROCEDURE addReservation(IN departure_airport_code varchar(3),
+ IN arrival_airport_code varchar(3), IN year integer, IN week integer, IN day varchar(10),
+ IN time time, IN number_of_passengers integer, IN output_reservation_nr integer)
+ BEGIN
+ 
+ 
+ 
+ END //
+
+
+
+-- Functions
+
+CREATE FUNCTION calculateFreeSeats(flightnumber int) RETURNS INTEGER
+
+BEGIN
+DECLARE seatsLeft INT;
+
+SET seatsLeft = 40 - (SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
+
+
+RETURN seatsLeft;
 
 END //
+
+CREATE FUNCTION calculatePrice(flightnumber int) RETURNS DOUBLE
+
+BEGIN
+DECLARE finalPrice DOUBLE;
+DECLARE rPrice DOUBLE;
+DECLARE wDayFactor DOUBLE;
+DECLARE bPassengers INT;
+DECLARE pFactor DOUBLE;
+DECLARE routeID int;
+DECLARE wsID int;
+DECLARE wDay varchar(10);
+DECLARE temp_year INT;
+
+SET wsID = (SELECT ws_id FROM flight WHERE flightnumber = flight_nr);
+SET routeID = (SELECT route_id FROM weekly_schedule WHERE wsID = id);
+
+SET rPrice = (SELECT routeprice FROM route WHERE routeID = route_id);
+SET wDay = (SELECT day FROM weekly_schedule WHERE wsID = id);
+SET temp_year = (SELECT year FROM weekly_schedule WHERE wsID = id);
+SET wDayFactor = (SELECT week_day_factor FROM day WHERE day = day AND temp_year = year);
+SET pFactor = (SELECT profit_factor FROM year WHERE temp_year = year);
+SET bPassengers = (SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
+
+SET finalPrice = rPrice*wDayFactor*((bPassengers+1)/40)*pFactor;
+
+RETURN finalPrice;
+
+END //
+
+-- Trigger
+
+CREATE TRIGGER createTicketNr 
+AFTER INSERT ON pays
+FOR EACH ROW
+INSERT INTO passengerBooking
+SET ACTION = 'insert',
+passengerBooking.ticket_nr = rand();
+//
