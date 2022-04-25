@@ -1,12 +1,13 @@
 
 drop table if exists flight cascade;
 drop table if exists pays cascade;
-drop table if exists reservation cascade;
+
 drop table if exists contact_person cascade;
 drop table if exists credit_card_holder cascade;
 drop table if exists passengerBooking cascade;
 drop table if exists booking cascade;
 drop table if exists passenger cascade;
+drop table if exists reservation cascade;
 drop table if exists weekly_schedule cascade;
 drop table if exists route cascade;
 drop table if exists airport cascade;
@@ -19,6 +20,9 @@ drop procedure if exists addDay;
 drop procedure if exists addDestination;
 drop procedure if exists addRoute;
 drop procedure if exists addFlight;
+drop procedure if exists addReservation;
+drop procedure if exists addPassenger;
+drop procedure if exists addContact;
 
 drop function if exists calculateFreeSeats;
 drop function if exists calculatePrice;
@@ -80,7 +84,9 @@ nr_of_passengers integer
 
 CREATE TABLE passenger (
 passport_nr integer PRIMARY KEY,
-name varchar(30)
+name varchar(30),
+reservation_nr integer,
+FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr)
 );
 
 CREATE TABLE contact_person (
@@ -175,13 +181,55 @@ END //
 CREATE PROCEDURE addReservation(IN departure_airport_code varchar(3),
  IN arrival_airport_code varchar(3), IN year integer, IN week integer, IN day varchar(10),
  IN time time, IN number_of_passengers integer, IN output_reservation_nr integer)
+ 
  BEGIN
- 
- 
+ DECLARE temp_flight_nr integer;
+ SET temp_flight_nr = (SELECT A.flight_nr FROM flight A WHERE A.week = week AND A.ws_id = (SELECT B.id FROM weekly_schedule B WHERE B.day = day AND B.year = year AND 
+ B.route_id = (SELECT C.route_id FROM route C WHERE C.departure_airport_code = departure_airport_code AND C.arrival_airport_code = arrival_airport_code AND C.year = year)));
+
+IF temp_flight_nr IS NOT NULL THEN
+IF calculateFreeSeats(temp_flight_nr) >= number_of_passengers THEN
+INSERT INTO reservation(reservation_nr, nr_of_passengers) VALUES (output_reservation_nr, number_of_passengers);
+ELSE
+SELECT "There are not enough empty seats" AS "Message";
+END IF;
+SELECT "This flight does not exist" AS "Message";
+END IF;
+
  
  END //
 
 
+CREATE PROCEDURE addPassenger(IN reservation_nr integer, IN passport_number integer, IN name varchar(30))
+
+BEGIN
+IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
+INSERT INTO passenger(passport_nr, name, reservation_nr) VALUES (passport_number, name, reservation_nr);
+ELSE
+SELECT "The given reservation number does not exist" AS "Message";
+END IF;
+
+
+END //
+
+CREATE PROCEDURE addContact(IN reservation_nr integer, IN passport_number integer, IN email varchar(30), IN phone bigint)
+
+BEGIN
+IF EXISTS (SELECT A.passport_nr FROM passenger A WHERE A.reservation_nr = reservation_nr AND A.passport_nr = passport_number) THEN
+INSERT INTO contact_person(phone_nr, email, pass_number) VALUES (phone, email, passport_number);
+ELSE 
+SELECT "The person is not a passenger on the reservation" AS "Message";
+END IF;
+
+END //
+
+CREATE PROCEDURE addPayment(IN reservation_nr integer, IN cardholder_name varchar(30), IN credit_card_number bigint)
+
+BEGIN
+
+-- IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
+
+END //
 
 -- Functions
 
