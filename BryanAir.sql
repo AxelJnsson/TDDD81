@@ -78,7 +78,7 @@ FOREIGN KEY (route_id) REFERENCES route(route_id)
 CREATE TABLE flight(
 flight_nr integer PRIMARY KEY auto_increment,
 ws_id integer,
-booked_passengers integer,
+booked_passengers integer default 40,
 week integer,
 FOREIGN KEY (ws_id) REFERENCES weekly_schedule(id)
 );
@@ -180,14 +180,17 @@ CREATE PROCEDURE addFlight(IN departure_airport_code varchar(3), IN arrival_airp
 BEGIN
 -- DECLARE id integer;
 DECLARE temp_week integer default 1;
-DECLARE route_id integer;
+DECLARE temp_route_id integer;
 DECLARE temp_ws_id integer;
-SET route_id = (SELECT route_id FROM route A WHERE A.departure_airport_code = departure_airport_code AND A.arrival_airport_code = arrival_airport_code AND A.year=year);
+
+SET temp_route_id = (SELECT C.route_id FROM route C WHERE 
+C.departure_airport_code = departure_airport_code AND C.arrival_airport_code = arrival_airport_code AND C.year = year);
+
 INSERT INTO weekly_schedule (year, day, route_id, time_of_dept)
-VALUES (year, day, route_id, departure_time);
+VALUES (year, day, temp_route_id, departure_time);
 
 -- while loop for 52 weeks
-SET temp_ws_id =(SELECT id FROM weekly_schedule WHERE route_id=route_id); 
+SET temp_ws_id = last_insert_id();
 insert_flights:
 WHILE temp_week <= 52 DO
 INSERT INTO flight(ws_id, week)
@@ -200,23 +203,39 @@ END //
 
 CREATE PROCEDURE addReservation(IN departure_airport_code varchar(3),
  IN arrival_airport_code varchar(3), IN year integer, IN week integer, IN day varchar(10),
- IN time time, IN number_of_passengers integer, OUT output_reservation_nr integer)
+ IN dept_time time, IN number_of_passengers integer, OUT output_reservation_nr integer)
  
  BEGIN
+ DECLARE temp_route_id integer;
+ DECLARE temp_ws_id integer;
  DECLARE temp_flight_nr integer;
- SET temp_flight_nr = (SELECT A.flight_nr FROM flight A WHERE A.week = week AND A.ws_id = (SELECT B.id FROM weekly_schedule B WHERE B.day = day AND B.year = year AND 
- B.route_id = (SELECT C.route_id FROM route C WHERE C.departure_airport_code = departure_airport_code AND C.arrival_airport_code = arrival_airport_code AND C.year = year)));
-SELECT temp_flight_nr;
+ 
+--  SET temp_flight_nr = (SELECT A.flight_nr FROM flight A WHERE A.week = week AND A.ws_id = 
+--  (SELECT B.id FROM weekly_schedule B WHERE B.day = day AND B.year = year AND 
+--  B.route_id = (SELECT C.route_id FROM route C WHERE 
+--  C.departure_airport_code = departure_airport_code AND C.arrival_airport_code = arrival_airport_code AND C.year = year))); 
+
+SET temp_route_id = (SELECT C.route_id FROM route C WHERE 
+C.departure_airport_code = departure_airport_code AND C.arrival_airport_code = arrival_airport_code AND C.year = year);
+
+SET temp_ws_id = (
+SELECT A.id FROM weekly_schedule A WHERE A.route_id = temp_route_id AND A.day = day AND A.year = year AND
+A.time_of_dept = dept_time);
+
+SET temp_flight_nr = (SELECT A.flight_nr FROM flight A WHERE A.ws_id = temp_ws_id AND A.week = week);
+
 IF temp_flight_nr IS NOT NULL THEN
+
 IF calculateFreeSeats(temp_flight_nr) >= number_of_passengers THEN
-SELECT SLEEP(5);
+
 INSERT INTO reservation(nr_of_passengers) VALUES (number_of_passengers);
 SET output_reservation_nr = last_insert_id();
 -- SELECT LAST_INSERT_INTO() INTO output_reservation_nr;
 ELSE
 SELECT "There are not enough empty seats" AS "Message";
 END IF;
-SELECT "This flight does not exist" AS "Message";
+ELSE
+SELECT "There exist no flight for the given route, date and time" AS "Message";
 END IF;
 
  
@@ -279,10 +298,9 @@ END //
 CREATE FUNCTION calculateFreeSeats(flightnumber int) RETURNS INTEGER
 
 BEGIN
-DECLARE seatsLeft INT;
+DECLARE seatsLeft integer;
 
-SET seatsLeft = 40 - (SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
-
+SET seatsLeft =(SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
 
 RETURN seatsLeft;
 
