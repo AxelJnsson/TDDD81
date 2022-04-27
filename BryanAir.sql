@@ -1,12 +1,16 @@
+SET FOREIGN_KEY_CHECKS = 0;
+drop table if exists reserved cascade;
 
-drop table if exists flight cascade;
 drop table if exists pays cascade;
 
+drop table if exists CR_has cascade;
 drop table if exists contact_person cascade;
 drop table if exists credit_card_holder cascade;
 drop table if exists passengerBooking cascade;
 drop table if exists booking cascade;
 drop table if exists passenger cascade;
+
+drop table if exists flight cascade;
 drop table if exists reservation cascade;
 drop table if exists weekly_schedule cascade;
 drop table if exists route cascade;
@@ -14,6 +18,7 @@ drop table if exists airport cascade;
 drop table if exists day cascade;
 drop table if exists year cascade;
 
+SET FOREIGN_KEY_CHECKS = 1;
 
 drop procedure if exists addYear;
 drop procedure if exists addDay;
@@ -23,6 +28,7 @@ drop procedure if exists addFlight;
 drop procedure if exists addReservation;
 drop procedure if exists addPassenger;
 drop procedure if exists addContact;
+drop procedure if exists addPayment;
 
 drop function if exists calculateFreeSeats;
 drop function if exists calculatePrice;
@@ -78,7 +84,7 @@ FOREIGN KEY (ws_id) REFERENCES weekly_schedule(id)
 );
 
 CREATE TABLE reservation(
-reservation_nr integer PRIMARY KEY,
+reservation_nr integer PRIMARY KEY auto_increment,
 nr_of_passengers integer
 );
 
@@ -123,6 +129,20 @@ FOREIGN KEY (booking_id) REFERENCES booking(booking_id),
 FOREIGN KEY (card_nr) REFERENCES credit_card_holder(card_nr),
 FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr)
 
+);
+
+CREATE TABLE reserved (
+reservation_nr integer PRIMARY KEY,
+flight_nr integer,
+FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr),
+FOREIGN KEY (flight_nr) REFERENCES flight(flight_nr)
+);
+
+CREATE TABLE CR_has (
+reservation_nr integer PRIMARY KEY,
+passport_nr integer,
+FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr),
+FOREIGN KEY (passport_nr) REFERENCES contact_person(pass_nr)
 );
 
 
@@ -180,16 +200,19 @@ END //
 
 CREATE PROCEDURE addReservation(IN departure_airport_code varchar(3),
  IN arrival_airport_code varchar(3), IN year integer, IN week integer, IN day varchar(10),
- IN time time, IN number_of_passengers integer, IN output_reservation_nr integer)
+ IN time time, IN number_of_passengers integer, OUT output_reservation_nr integer)
  
  BEGIN
  DECLARE temp_flight_nr integer;
  SET temp_flight_nr = (SELECT A.flight_nr FROM flight A WHERE A.week = week AND A.ws_id = (SELECT B.id FROM weekly_schedule B WHERE B.day = day AND B.year = year AND 
  B.route_id = (SELECT C.route_id FROM route C WHERE C.departure_airport_code = departure_airport_code AND C.arrival_airport_code = arrival_airport_code AND C.year = year)));
-
+SELECT temp_flight_nr;
 IF temp_flight_nr IS NOT NULL THEN
 IF calculateFreeSeats(temp_flight_nr) >= number_of_passengers THEN
-INSERT INTO reservation(reservation_nr, nr_of_passengers) VALUES (output_reservation_nr, number_of_passengers);
+SELECT SLEEP(5);
+INSERT INTO reservation(nr_of_passengers) VALUES (number_of_passengers);
+SET output_reservation_nr = last_insert_id();
+-- SELECT LAST_INSERT_INTO() INTO output_reservation_nr;
 ELSE
 SELECT "There are not enough empty seats" AS "Message";
 END IF;
@@ -226,8 +249,28 @@ END //
 CREATE PROCEDURE addPayment(IN reservation_nr integer, IN cardholder_name varchar(30), IN credit_card_number bigint)
 
 BEGIN
+DECLARE flight_nr integer;
+DECLARE nr_of_passengers integer;
+DECLARE price integer;
 
--- IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
+IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
+	IF EXISTS (SELECT A.passport_nr FROM CR_has A WHERE A.reservation_nr = reservation_nr) THEN
+          SET flight_nr = (SELECT A.flight_nr FROM reserved A WHERE A.reservation_nr = reservation_nr);
+         
+    SET nr_of_passengers =(SELECT A.nr_of_passengers FROM reservation A WHERE A.reservation_nr = reservation_nr);
+		IF nr_of_passengers <= calculateFreeSeats(flight_nr) THEN
+        SET price = calculatePrice(fligth_nr);
+        INSERT INTO booking(price) VALUES (price);
+        INSERT INTO credit_card_holder(card_nr, name) VALUES (credit_card_number ,cardholder_name);
+        ELSE 
+        SELECT "There are not enough seats available on the flight anymore, deleting reservation" AS "Message";
+		END IF;
+	ELSE 
+    SELECT "The reservation has no contact yet" AS "Message";
+    END IF;
+ELSE
+SELECT "The given reservation number does not exist" AS "Message";
+END IF;
 
 END //
 
