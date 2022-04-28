@@ -17,6 +17,7 @@ drop table if exists route cascade;
 drop table if exists airport cascade;
 drop table if exists day cascade;
 drop table if exists year cascade;
+drop table if exists PR_has cascade;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -145,6 +146,14 @@ FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr),
 FOREIGN KEY (passport_nr) REFERENCES contact_person(pass_nr)
 );
 
+CREATE TABLE PR_has (
+passport_nr integer,
+reservation_nr integer,
+FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr),
+FOREIGN KEY (passport_nr) REFERENCES contact_person(pass_nr),
+CONSTRAINT PK_const PRIMARY KEY (passport_nr, reservation_nr)
+);
+
 
 /*
 Procedures
@@ -232,7 +241,7 @@ INSERT INTO reservation(nr_of_passengers) VALUES (number_of_passengers);
 SET output_reservation_nr = last_insert_id();
 -- SELECT LAST_INSERT_INTO() INTO output_reservation_nr;
 ELSE
-SELECT "There are not enough empty seats" AS "Message";
+SELECT "There are not enough seats available on the chosen flight" AS "Message";
 END IF;
 ELSE
 SELECT "There exist no flight for the given route, date and time" AS "Message";
@@ -246,7 +255,11 @@ CREATE PROCEDURE addPassenger(IN reservation_nr integer, IN passport_number inte
 
 BEGIN
 IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
+IF EXISTS (SELECT A.pass_nr FROM passenger WHERE A.pass_nr = passport_number) THEN
+INSERT INTO PR_has(passport_nr, reservation_nr) VALUES (passport_number, reservation_nr);
+ELSE
 INSERT INTO passenger(passport_nr, name, reservation_nr) VALUES (passport_number, name, reservation_nr);
+END IF;
 ELSE
 SELECT "The given reservation number does not exist" AS "Message";
 END IF;
