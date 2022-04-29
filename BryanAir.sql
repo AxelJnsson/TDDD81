@@ -150,7 +150,7 @@ CREATE TABLE PR_has (
 passport_nr integer,
 reservation_nr integer,
 FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr),
-FOREIGN KEY (passport_nr) REFERENCES contact_person(pass_nr),
+FOREIGN KEY (passport_nr) REFERENCES passenger(passport_nr),
 CONSTRAINT PK_const PRIMARY KEY (passport_nr, reservation_nr)
 );
 
@@ -239,6 +239,7 @@ IF calculateFreeSeats(temp_flight_nr) >= number_of_passengers THEN
 
 INSERT INTO reservation(nr_of_passengers) VALUES (number_of_passengers);
 SET output_reservation_nr = last_insert_id();
+INSERT INTO reserved(reservation_nr, flight_nr) VALUES (output_reservation_nr, temp_flight_nr);
 -- SELECT LAST_INSERT_INTO() INTO output_reservation_nr;
 ELSE
 SELECT "There are not enough seats available on the chosen flight" AS "Message";
@@ -254,14 +255,18 @@ END IF;
 CREATE PROCEDURE addPassenger(IN reservation_nr integer, IN passport_number integer, IN name varchar(30))
 
 BEGIN
+IF NOT EXISTS (SELECT A.reservation_nr FROM pays A WHERE A.reservation_nr = reservation_nr) THEN
 IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
-IF EXISTS (SELECT A.pass_nr FROM passenger WHERE A.pass_nr = passport_number) THEN
+IF EXISTS (SELECT passport_nr FROM passenger WHERE passport_nr = passport_number) THEN
 INSERT INTO PR_has(passport_nr, reservation_nr) VALUES (passport_number, reservation_nr);
 ELSE
 INSERT INTO passenger(passport_nr, name, reservation_nr) VALUES (passport_number, name, reservation_nr);
 END IF;
 ELSE
 SELECT "The given reservation number does not exist" AS "Message";
+END IF;
+ELSE 
+SELECT "The booking has already been payed and no futher passengers can be added" AS "Message";
 END IF;
 
 
@@ -270,10 +275,16 @@ END //
 CREATE PROCEDURE addContact(IN reservation_nr integer, IN passport_number integer, IN email varchar(30), IN phone bigint)
 
 BEGIN
+IF EXISTS (SELECT A.reservation_nr FROM passenger A WHERE A.reservation_nr = reservation_nr) THEN
 IF EXISTS (SELECT A.passport_nr FROM passenger A WHERE A.reservation_nr = reservation_nr AND A.passport_nr = passport_number) THEN
-INSERT INTO contact_person(phone_nr, email, pass_number) VALUES (phone, email, passport_number);
+INSERT INTO contact_person(phone_nr, email, pass_nr) VALUES (phone, email, passport_number);
+INSERT INTO CR_has(reservation_nr, passport_nr) VALUES (reservation_nr, passport_number);
 ELSE 
 SELECT "The person is not a passenger on the reservation" AS "Message";
+END IF;
+ELSE 
+SELECT "The given reservation number does not exist" AS "Message";
+
 END IF;
 
 END //
@@ -281,19 +292,29 @@ END //
 CREATE PROCEDURE addPayment(IN reservation_nr integer, IN cardholder_name varchar(30), IN credit_card_number bigint)
 
 BEGIN
-DECLARE flight_nr integer;
+DECLARE temp_flight_nr integer;
 DECLARE nr_of_passengers integer;
 DECLARE price integer;
+DECLARE temp_booking_id integer;
 
 IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
+
 	IF EXISTS (SELECT A.passport_nr FROM CR_has A WHERE A.reservation_nr = reservation_nr) THEN
-          SET flight_nr = (SELECT A.flight_nr FROM reserved A WHERE A.reservation_nr = reservation_nr);
+          SET temp_flight_nr = (SELECT A.flight_nr FROM reserved A WHERE A.reservation_nr = reservation_nr);
          
     SET nr_of_passengers =(SELECT A.nr_of_passengers FROM reservation A WHERE A.reservation_nr = reservation_nr);
-		IF nr_of_passengers <= calculateFreeSeats(flight_nr) THEN
-        SET price = calculatePrice(fligth_nr);
+		IF nr_of_passengers <= calculateFreeSeats(temp_flight_nr) THEN
+        SET price = calculatePrice(temp_flight_nr);
+        SELECT calculateFreeSeats(temp_flight_nr);
+        SELECT nr_of_passengers;
+        SELECT * FROM reservation;
         INSERT INTO booking(price) VALUES (price);
+        SET temp_booking_id = last_insert_id();
         INSERT INTO credit_card_holder(card_nr, name) VALUES (credit_card_number ,cardholder_name);
+        INSERT INTO pays(booking_id, card_nr, reservation_nr) VALUES (temp_booking_id, credit_card_number, reservation_nr);
+        UPDATE flight
+        SET booked_passengers = booked_passengers - nr_of_passengers
+        WHERE flight_nr = temp_flight_nr;
         ELSE 
         SELECT "There are not enough seats available on the flight anymore, deleting reservation" AS "Message";
 		END IF;
@@ -353,7 +374,5 @@ END //
 CREATE TRIGGER createTicketNr 
 AFTER INSERT ON pays
 FOR EACH ROW
-INSERT INTO passengerBooking
-SET ACTION = 'insert',
-passengerBooking.ticket_nr = rand();
+INSERT INTO passengerBooking(ticket_nr) VALUES (ticket_nr = rand());
 //
