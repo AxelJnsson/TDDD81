@@ -19,6 +19,8 @@ drop table if exists day cascade;
 drop table if exists year cascade;
 drop table if exists PR_has cascade;
 
+drop view if exists allFlights;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 drop procedure if exists addYear;
@@ -79,14 +81,14 @@ FOREIGN KEY (route_id) REFERENCES route(route_id)
 CREATE TABLE flight(
 flight_nr integer PRIMARY KEY auto_increment,
 ws_id integer,
-booked_passengers integer default 40,
+booked_passengers integer default 0,
 week integer,
 FOREIGN KEY (ws_id) REFERENCES weekly_schedule(id)
 );
 
 CREATE TABLE reservation(
 reservation_nr integer PRIMARY KEY auto_increment,
-nr_of_passengers integer
+nr_of_passengers integer default 0
 );
 
 CREATE TABLE passenger (
@@ -114,11 +116,12 @@ price double
 );
 
 CREATE TABLE passengerBooking (
-ticket_nr integer PRIMARY KEY,
+ticket_nr integer,
 booking_id integer,
 passport_nr integer,
 FOREIGN KEY (passport_nr) REFERENCES passenger(passport_nr),
-FOREIGN KEY (booking_id) REFERENCES booking(booking_id)
+FOREIGN KEY (booking_id) REFERENCES booking(booking_id),
+CONSTRAINT PK_const PRIMARY KEY (ticket_nr, booking_id)
 
 );
 
@@ -153,6 +156,24 @@ FOREIGN KEY (reservation_nr) REFERENCES reservation(reservation_nr),
 FOREIGN KEY (passport_nr) REFERENCES passenger(passport_nr),
 CONSTRAINT PK_const PRIMARY KEY (passport_nr, reservation_nr)
 );
+
+
+-- View
+
+CREATE VIEW allFlights AS
+SELECT D.name AS departure_city_name, E.name AS destination_city_name, B.time_of_dept AS departure_time,
+B.day AS departure_day, A.week AS departure_week, B.year AS departure_year, (40-A.booked_passengers) AS nr_of_free_seats,
+ ROUND(C.routeprice*F.week_day_factor*((A.booked_passengers+1)/40)*G.profit_factor, 3) AS current_price_per_seat FROM 
+flight A, weekly_schedule B, route C, airport E, airport D, day F, year G
+WHERE
+A.ws_id = B.id AND
+B.year = G.year AND
+B.day = F.day AND
+C.departure_airport_code = D.airport_code AND
+B.route_id = C.route_id AND
+C.arrival_airport_code = E.airport_code AND
+B.year = C.year
+;
 
 
 /*
@@ -237,7 +258,7 @@ IF temp_flight_nr IS NOT NULL THEN
 
 IF calculateFreeSeats(temp_flight_nr) >= number_of_passengers THEN
 
-INSERT INTO reservation(nr_of_passengers) VALUES (number_of_passengers);
+INSERT INTO reservation() VALUES ();
 SET output_reservation_nr = last_insert_id();
 INSERT INTO reserved(reservation_nr, flight_nr) VALUES (output_reservation_nr, temp_flight_nr);
 -- SELECT LAST_INSERT_INTO() INTO output_reservation_nr;
@@ -261,6 +282,10 @@ IF EXISTS (SELECT passport_nr FROM passenger WHERE passport_nr = passport_number
 INSERT INTO PR_has(passport_nr, reservation_nr) VALUES (passport_number, reservation_nr);
 ELSE
 INSERT INTO passenger(passport_nr, name, reservation_nr) VALUES (passport_number, name, reservation_nr);
+UPDATE reservation A
+SET nr_of_passengers = nr_of_passengers +1
+WHERE A.reservation_nr = reservation_nr;
+
 END IF;
 ELSE
 SELECT "The given reservation number does not exist" AS "Message";
@@ -303,19 +328,27 @@ IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = r
           SET temp_flight_nr = (SELECT A.flight_nr FROM reserved A WHERE A.reservation_nr = reservation_nr);
          
     SET nr_of_passengers =(SELECT A.nr_of_passengers FROM reservation A WHERE A.reservation_nr = reservation_nr);
-		IF nr_of_passengers <= calculateFreeSeats(temp_flight_nr) THEN
+
+		IF calculateFreeSeats(temp_flight_nr) >= nr_of_passengers THEN
+  
         SET price = calculatePrice(temp_flight_nr);
-        SELECT calculateFreeSeats(temp_flight_nr);
-        SELECT nr_of_passengers;
-        SELECT * FROM reservation;
+        
         INSERT INTO booking(price) VALUES (price);
         SET temp_booking_id = last_insert_id();
+          
         INSERT INTO credit_card_holder(card_nr, name) VALUES (credit_card_number ,cardholder_name);
+
         INSERT INTO pays(booking_id, card_nr, reservation_nr) VALUES (temp_booking_id, credit_card_number, reservation_nr);
+        
+     
         UPDATE flight
-        SET booked_passengers = booked_passengers - nr_of_passengers
+        SET booked_passengers = booked_passengers + nr_of_passengers
         WHERE flight_nr = temp_flight_nr;
+         SELECT * FROM flight;
         ELSE 
+        SET FOREIGN_KEY_CHECKS=0;
+		 DELETE FROM reservation WHERE reservation.reservation_nr = reservation_nr; 
+		SET FOREIGN_KEY_CHECKS=1;
         SELECT "There are not enough seats available on the flight anymore, deleting reservation" AS "Message";
 		END IF;
 	ELSE 
@@ -332,11 +365,13 @@ END //
 CREATE FUNCTION calculateFreeSeats(flightnumber int) RETURNS INTEGER
 
 BEGIN
-DECLARE seatsLeft integer;
+DECLARE cap integer default 40;
+DECLARE bSeats integer;
 
-SET seatsLeft =(SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
+SET bSeats =(SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
 
-RETURN seatsLeft;
+
+RETURN (cap -bSeats);
 
 END //
 
@@ -346,22 +381,24 @@ BEGIN
 DECLARE finalPrice DOUBLE;
 DECLARE rPrice DOUBLE;
 DECLARE wDayFactor DOUBLE;
-DECLARE bPassengers INT;
+DECLARE bPassengers INT default 0;
 DECLARE pFactor DOUBLE;
 DECLARE routeID int;
 DECLARE wsID int;
 DECLARE wDay varchar(10);
 DECLARE temp_year INT;
 
-SET wsID = (SELECT ws_id FROM flight WHERE flightnumber = flight_nr);
-SET routeID = (SELECT route_id FROM weekly_schedule WHERE wsID = id);
+SET rPrice = (SELECT A.routeprice FROM route A, weekly_schedule B, flight C WHERE
+C.flight_nr = flightnumber AND C.ws_id = B.id
+AND A.year = B.year AND A.route_id = B.route_id);
 
-SET rPrice = (SELECT routeprice FROM route WHERE routeID = route_id);
-SET wDay = (SELECT day FROM weekly_schedule WHERE wsID = id);
-SET temp_year = (SELECT year FROM weekly_schedule WHERE wsID = id);
-SET wDayFactor = (SELECT week_day_factor FROM day WHERE day = day AND temp_year = year);
-SET pFactor = (SELECT profit_factor FROM year WHERE temp_year = year);
-SET bPassengers = (SELECT booked_passengers FROM flight WHERE flightnumber = flight_nr);
+SET wDayFactor = (SELECT A.week_day_factor FROM day A, flight B, weekly_schedule C WHERE
+B.flight_nr = flightnumber AND B.ws_id = C.id AND A.day = C.day);
+
+SET pFactor = (SELECT A.profit_factor FROM year A, flight B, weekly_schedule C WHERE
+B.flight_nr = flightnumber AND B.ws_id = C.id AND C.year = A.year);
+
+SET bPassengers = (40 - calculateFreeSeats(flightnumber));
 
 SET finalPrice = rPrice*wDayFactor*((bPassengers+1)/40)*pFactor;
 
@@ -372,7 +409,7 @@ END //
 -- Trigger
 
 CREATE TRIGGER createTicketNr 
-AFTER INSERT ON pays
+AFTER INSERT ON passengerBooking
 FOR EACH ROW
 INSERT INTO passengerBooking(ticket_nr) VALUES (ticket_nr = rand());
 //
