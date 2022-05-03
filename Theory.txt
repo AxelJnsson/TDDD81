@@ -1,0 +1,10 @@
+8 a)
+You can protect sensitive information such as credit card information by encrypting the card number. In addition to this, make sure that people who are allowed to access the encrypted data aren't allowed to access the encryption keys.
+
+b)
+
+- Better performance: The procedures are stored in an executable form and can therefore be used efficiently
+
+- High productivity: Since the same pice of code can be used agian and again without having to run it all over again every time, it results in high productivity
+
+- Maintainability: It is easier to maintain a procedure on a server than in the front end since the front end appears local
