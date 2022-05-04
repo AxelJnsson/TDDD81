@@ -258,6 +258,7 @@ SET temp_flight_nr = (SELECT A.flight_nr FROM flight A WHERE A.ws_id = temp_ws_i
 IF temp_flight_nr IS NOT NULL THEN
 
 IF calculateFreeSeats(temp_flight_nr) >= number_of_passengers THEN
+-- SELECT SLEEP(5);
 
 INSERT INTO reservation() VALUES ();
 SET output_reservation_nr = last_insert_id();
@@ -322,6 +323,7 @@ DECLARE temp_flight_nr integer;
 DECLARE nr_of_passengers integer;
 DECLARE price integer;
 DECLARE temp_booking_id integer;
+DECLARE temp_free_seats integer;
 
 IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = reservation_nr) THEN
 
@@ -329,8 +331,10 @@ IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = r
           SET temp_flight_nr = (SELECT A.flight_nr FROM reserved A WHERE A.reservation_nr = reservation_nr);
          
     SET nr_of_passengers =(SELECT A.nr_of_passengers FROM reservation A WHERE A.reservation_nr = reservation_nr);
-
-		IF calculateFreeSeats(temp_flight_nr) >= nr_of_passengers THEN
+		SET temp_free_seats = calculateFreeSeats(temp_flight_nr);
+        SELECT SLEEP(5);
+		IF temp_free_seats >= nr_of_passengers THEN
+        
   
         SET price = calculatePrice(temp_flight_nr);
         
@@ -409,11 +413,6 @@ END //
 
 -- Trigger
 
--- CREATE TRIGGER createTicketNr 
--- AFTER INSERT ON passengerBooking
--- FOR EACH ROW
--- INSERT INTO passengerBooking(ticket_nr) VALUES (ticket_nr = rand());
--- //
 
 CREATE TRIGGER createTicketNr 
 AFTER INSERT ON pays
@@ -423,10 +422,29 @@ UPDATE passengerBooking SET ticket_nr = rand() WHERE ticket_nr = NULL;
 END;
 //
 
--- CREATE TRIGGER createTicketNr 
--- AFTER INSERT ON pays
--- FOR EACH ROW
--- WHEN (passengerBooking.ticket_nr = NULL)
--- SET NEW.ticket_nr = rand();
--- //
+-- QUESTIONS
+
+-- 8 
+-- a) You can protect sensitive information such as credit card information by encrypting the card number. In addition to this, make sure that people who are allowed to access the encrypted data aren't allowed to access the encryption keys.
+
+-- b)
+
+-- - Better performance: The procedures are stored in an executable form and can therefore be used efficiently
+
+-- - High productivity: Since the same pice of code can be used agian and again without having to run it all over again every time, it results in high productivity
+
+-- - Maintainability: It is easier to maintain a procedure on a server than in the front end since the front end appears local
+
+-- 9
+-- a) -
+-- b) No the reservation is not visible. Because the reservation is stored locally.
+-- c) We can't modife the reservation table since it is not accessable from terminal B.
+
+-- 10
+-- a) No overbooking occured, this is probably due to the isolation clause of each session
+-- b) Yes a overbooking can theoretically occur if two terminals are being run simultaneously and both pass the freeSeat check before the first one updates the flight table
+-- c) We can't make the theoretical case occur since we check if the given flight exsist and session B don't have access to the flight - After dicussion with Joel
+-- d) 
+
+
 
