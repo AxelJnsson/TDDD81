@@ -1,3 +1,4 @@
+-- START TRANSACTION;
 SET FOREIGN_KEY_CHECKS = 0;
 drop table if exists reserved cascade;
 
@@ -344,7 +345,7 @@ IF EXISTS (SELECT A.reservation_nr FROM reservation A WHERE A.reservation_nr = r
         UPDATE flight
         SET booked_passengers = booked_passengers + nr_of_passengers
         WHERE flight_nr = temp_flight_nr;
-         SELECT * FROM flight;
+         
         ELSE 
         SET FOREIGN_KEY_CHECKS=0;
 		 DELETE FROM reservation WHERE reservation.reservation_nr = reservation_nr; 
@@ -408,8 +409,24 @@ END //
 
 -- Trigger
 
+-- CREATE TRIGGER createTicketNr 
+-- AFTER INSERT ON passengerBooking
+-- FOR EACH ROW
+-- INSERT INTO passengerBooking(ticket_nr) VALUES (ticket_nr = rand());
+-- //
+
 CREATE TRIGGER createTicketNr 
-AFTER INSERT ON passengerBooking
+AFTER INSERT ON pays
 FOR EACH ROW
-INSERT INTO passengerBooking(ticket_nr) VALUES (ticket_nr = rand());
+BEGIN
+UPDATE passengerBooking SET ticket_nr = rand() WHERE ticket_nr = NULL;
+END;
 //
+
+-- CREATE TRIGGER createTicketNr 
+-- AFTER INSERT ON pays
+-- FOR EACH ROW
+-- WHEN (passengerBooking.ticket_nr = NULL)
+-- SET NEW.ticket_nr = rand();
+-- //
+
