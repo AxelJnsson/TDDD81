@@ -437,14 +437,28 @@ END;
 
 -- 9
 -- a) -
--- b) No the reservation is not visible. Because the reservation is stored locally.
+-- b) No the reservation is not visible. This is because of the isolation clause that comes with START TRANSACTION.
 -- c) We can't modife the reservation table since it is not accessable from terminal B.
 
 -- 10
--- a) No overbooking occured, this is probably due to the isolation clause of each session
--- b) Yes a overbooking can theoretically occur if two terminals are being run simultaneously and both pass the freeSeat check before the first one updates the flight table
--- c) We can't make the theoretical case occur since we check if the given flight exsist and session B don't have access to the flight - After dicussion with Joel
--- d) 
+-- a) No overbooking occured, this is because of the way the database is implemented. Since the addpayment procedure always checks
+-- if the booking can be made (based on seats left) before it updates the flight table, it is unlikely that two sessions will make it through
+-- the if statement simultaneosly
+-- b) Yes a overbooking can theoretically occur if two terminals are being run simultaneously and both pass
+--  the if statement that calculates empty seats before the first one updates the flight table
+-- c) The theoretical case should be possible to achive with the current implementation. We have place the SLEEP(5) statements immediatly
+-- after the calculateFreeSeats-fuction is used. By doing this we should be able to overbook. Unfortunately
+-- we haven't been able to verify this due to an unknown issue when we run both scripts at the same time
+-- After dicussion with Joel he verifed that our solution and way of thinking was correct and that a theoretical answer will be enough for the last questions.
+-- d) The overbooking issue appears when the addPayment procedure is executed. Therfore it should be enough to lock 
+-- all the tables that are being used/affected in addPayment right before the addPayement statment in the test script.
+-- We need to lock all the affected tables with a write lock to prevent the other simulation from reading and writing when
+-- when the first simulation is exectuing the addPayment statement. Immediatly after the statment, we want to unlock all the tables directly
+-- to allow the other simulation access to this part of the database. It is important to lock as few tables as possible and for
+-- as little time as possible in order to keep the database running somthly and efficiently. After discussion with Joel we said that
+-- a theoretical answer was enough in this case, for the same reasoing as in question 10 d).
+
+
 
 
 
