@@ -458,6 +458,12 @@ END;
 -- as little time as possible in order to keep the database running somthly and efficiently. After discussion with Joel we said that
 -- a theoretical answer was enough in this case, for the same reasoing as in question 10 d).
 
+-- When is a secondary index useful?
+-- Sometimes a primary access method is not fast enough. In this case, a secondary index can be used to speed up data collection from the databasa.
+-- A good place to use this method would be in the passenger table since it conatians a lot of entries with a primary key that is not stored in incremental order.
+-- We want to sort the passport numbers with a secondary index and use a binary serch to find the corresponding element quicker.
+-- We can use a index data file that points to different blocks of the table in order to decrease serch time.
+
 
 
 
